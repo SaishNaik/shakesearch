@@ -105,9 +105,13 @@ func (s *Searcher) Search(query string) []string {
 			result := <-ch
 			for _, res := range result {
 				idx := res.idx
+				lastIdx := res.lastIdx
 				if _, ok := added[idx]; !ok {
-					results = append(results, res.res)
-					added[idx] = true
+					if _, ok := added[lastIdx]; !ok {
+						results = append(results, res.res)
+						added[idx] = true
+						added[lastIdx] = true
+					}
 				}
 			}
 		}
@@ -116,15 +120,16 @@ func (s *Searcher) Search(query string) []string {
 }
 
 type Result struct {
-	res string
-	idx int
+	res     string
+	idx     int
+	lastIdx int
 }
 
 func (s *Searcher) partialResults(query string, ch chan []Result) {
 	idxs := s.SuffixArray.Lookup([]byte(query), -1)
 	var results []Result
 	for _, idx := range idxs {
-		results = append(results, Result{s.processResult(idx, query), idx})
+		results = append(results, Result{s.processResult(idx, query), idx, idx + len(query) - 1})
 	}
 	ch <- results
 }
@@ -161,8 +166,16 @@ func (s *Searcher) processResult(from int, query string) string {
 		}
 	}
 
-	//return s.CompleteWorks[prevIdx:from] + "<b>" + s.CompleteWorks[from:from+len(query)] + "</b>" + s.CompleteWorks[from+len(query):nextIdx] //todo check this how it works without including nextindex
-	return "<span class='hide'>" + s.CompleteWorks[prevIdx:prevFirstIdx] + "</span><b>" + s.CompleteWorks[prevFirstIdx:from] + "<mark>" + s.CompleteWorks[from:from+len(query)] + "</mark>" + s.CompleteWorks[from+len(query):nextFirstIdx] + "</b><span class='hide'>" + s.CompleteWorks[nextFirstIdx:nextIdx] + "</span>" //todo check this how it works without including nextindex
-}
+	if prevFirstIdx == -1 {
+		prevIdx = 0
+		prevFirstIdx = 0
+	}
+	if nextFirstIdx == -1 {
+		nextIdx = len(s.CompleteWorks) - 1
+		nextFirstIdx = len(s.CompleteWorks) - 1
+	}
 
+	return "<span class='hide'>" + s.CompleteWorks[prevIdx:prevFirstIdx] + "</span><b>" + s.CompleteWorks[prevFirstIdx:from] + "<mark>" + s.CompleteWorks[from:from+len(query)] + "</mark>" + s.CompleteWorks[from+len(query):nextFirstIdx] + "</b><span class='hide'>" + s.CompleteWorks[nextFirstIdx:nextIdx] + "</span>"
+
+}
 
